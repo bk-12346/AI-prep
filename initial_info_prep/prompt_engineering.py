@@ -55,6 +55,7 @@ print(response)
 
 # Conditional Prompts: Have if/else structure
 
+## One shot prompt
 # Create the instructions
 instructions = "Infer the language and the number of sentences of the given delimited text by triple backticks; then if the text contains more than one sentence, generate a suitable title for it, otherwise, write 'N/A' for the title."
 # Create the output format
@@ -63,4 +64,23 @@ prompt = instructions + output_format + f"```{text}```"
 response = get_response(prompt)
 print(response)
 
-ff
+## Few shot prompt
+# Create a one-shot prompt
+prompt = """Find the odd numbers in the set {1,3,7,12,19. The response should be like {1, 3, 7, 19}. Find the odd numbers in the set {3, 5, 11, 12, 16}.} """
+
+response = get_response(prompt)
+print(response)
+
+response = client.chat.completions.create(
+  model = "gpt-4o-mini",
+  # Provide the examples as previous conversations
+  messages = [{"role": "user", "content": "The product quality exceeded my expectations"},
+              {"role": "assistant", "content": "1"},
+              {"role": "user", "content": "I had a terrible experience with this product's customer service"},
+              {"role": "assistant", "content": "-1"},
+              # Provide the text for the model to classify
+              {"role": "user", "content": "The price of the product is really fair given its features"}
+             ],
+  temperature = 0
+)
+print(response.choices[0].message.content)
