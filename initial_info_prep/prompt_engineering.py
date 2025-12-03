@@ -1,8 +1,8 @@
 from openai import OpenAI
 client = OpenAI(api_key="<OPENAI_API_TOKEN>")
 
-# Prompt Engineering
-# Create a get_response() function so we don't have to write the code every time
+###### Prompt Engineering #####
+### Create a get_response() function so we don't have to write the code every time
 # just make changes to the prompt
 
 def get_response(prompt):
@@ -15,7 +15,7 @@ def get_response(prompt):
     )
     return response.choices[0].message.content
 
-# Key Principles:
+### Key Principles:
 # use action verbs: write, complete etc
 # provide specific and detailed instructions
 # limit output length
@@ -27,10 +27,10 @@ response = get_reponse(prompt)
 print("\n Original story: \n", story)
 print("\n Generated story: \n", response)
 
-#Prompt Components:
+### Prompt Components:
 # instructions and output data to operate on
 
-# Structures Outputs:
+### Structures Outputs:
 # output structures are tables, lists, structured paragraphs or custom format
 # to generate a table clearly mention expected columns
 
@@ -53,9 +53,9 @@ prompt = instructions + output_format + f"```{text}```"
 response = get_response(prompt)
 print(response)
 
-# Conditional Prompts: Have if/else structure
+### Conditional Prompts: Have if/else structure
 
-## One shot prompt
+### One shot prompt
 # Create the instructions
 instructions = "Infer the language and the number of sentences of the given delimited text by triple backticks; then if the text contains more than one sentence, generate a suitable title for it, otherwise, write 'N/A' for the title."
 # Create the output format
@@ -64,7 +64,13 @@ prompt = instructions + output_format + f"```{text}```"
 response = get_response(prompt)
 print(response)
 
-## Few shot prompt
+########################################################################
+
+### Few shot prompt
+# consider task complexity to decide how many examples are needed
+# fewer shots -> basic tasks
+# diverse shots -> complex tasks
+
 # Create a one-shot prompt
 prompt = """Find the odd numbers in the set {1,3,7,12,19. The response should be like {1, 3, 7, 19}. Find the odd numbers in the set {3, 5, 11, 12, 16}.} """
 
@@ -84,3 +90,152 @@ response = client.chat.completions.create(
   temperature = 0
 )
 print(response.choices[0].message.content)
+
+### Single-step prompt
+# Create a single-step prompt to get help planning the vacation
+prompt = "Help me plan a beach vacation"
+
+### Multi-step prompt
+# break down the end goal into a series of steps 
+# model goes through each step to give final output
+# used for : 1. sequential tasks, 2. cognitive tasks such as analyzing solution correctness
+
+# Create a prompt detailing steps to plan the trip
+prompt = """make a plan for a beach vacation, which should include: four potential locations, each with some accommodation options, some activities, and an evaluation of the pros and cons.
+"""
+
+### Analyzing solution correctness
+code = '''
+def calculate_rectangle_area(length, width):
+    area = length * width
+    return area
+'''
+# Create a prompt that analyzes correctness of the code
+prompt = f"assess the function provided in the delimited code string according to the three criteria: correct syntax, receiving two inputs, and returning one output. {code}"
+
+### Prompting Techniques
+## Chain of thought prompting
+# requires llms to give reasoning steps before giving the answer
+# used for complex reasoning tasks
+# helps reduce errors
+
+# Create the chain-of-thought prompt
+prompt = "determine my friend's father's age in 10 years, given that he is currently twice my friend's age, and my friend is 20. Show the thinking step-by-step."
+
+## One-Shot chain-of-thought prompt
+# Define the example 
+example = """Q: Sum the even numbers in the following set: {9,10,13,4,2}.
+             A: Even numbers: {10,4,2}. Adding them: 10+4+2=16"""
+# Define the question
+question = """Q: Sum the even numbers in the following set: 15, 13, 82, 7, 14}.
+              A:"""
+# Create the final prompt
+prompt = example + question
+response = get_response(prompt)
+
+### Chain-of-thought vs. Multi-step
+# Multi-step incorporates steps inside the prompt
+# chain of thought asks the model to generate intermediate steps 
+# limitation of chain of thought is that one flawed thought can lead to a flawed final answer.
+
+### Self-consistency prompts
+# generates multiple chain of thoughts by prompting the model several times
+# can be done by defining multiple prompts
+
+# Create the self_consistency instruction
+self_consistency_instruction = "Solve the problem with three experts and combine the results with a majority vote."
+# Create the problem to solve
+problem_to_solve = "If you own a store that sells laptops and mobile phones. You start your day with 50 devices in the store, out of which 60% are mobile phones. Throughout the day, three clients visited the store, each of them bought one mobile phone, and one of them bought additionally a laptop. Also, you added to your collection 10 laptops and 5 mobile phones. How many laptops and mobile phones do you have by the end of the day?"
+# Create the final prompt
+prompt = self_consistency_instruction + problem_to_solve
+
+### Iterative Prompt Engineering and Refinement
+# build a model -> feed it to the model -> observe and analyze the output -> reiterate to make the prompt better
+# For few-shot prompts -> refine examples
+# For multi-step prompts -> refine guiding steps
+# For chain-of-thought and self-consistency prompts -> refine problem description
+##################################################################################
+
+### Text Summarization
+# condenses text into shorter format while still preserving its essential meaning
+# used to streamline business processes
+# to make the prompt more effective, specify: 
+# output limits -> specify no. of words/sentences
+# output structure -> mention the format e.g bullet points
+# summarization focus
+
+# Craft a prompt to summarize the report
+prompt = f"""Summarize the {report} in maximum 5 sentences, while focusing on aspects related to AI and data privacy"""
+
+### Text Expansion
+# generates text from ideas/bullets
+# to improve prompt effeciency:
+# ask model to expand delimited text
+# highlight aspects to focus on
+# provide output requirements
+
+# Craft a prompt to expand the product's description
+prompt = f"""Expand the {product_description} and write a one paragraph comprehensive overview capturing the key information of the product: unique features, benefits, and potential applications.
+"""
+
+### Text Transformation
+# transforms given text to create new text
+## language translation -> specify input + output language
+# Craft a prompt to change the language
+prompt = f"""Translate the {marketing_message} from English to French,Spanish, and Japanese"""
+
+## tone adjustment -> specify target audience, use multistep prompt
+# Craft a prompt to change the email's tone
+prompt = f"""Change the tone of the {sample_email} to be proffessional, positive and user-centric"""
+
+# Craft a prompt to transform the text
+prompt = f"""Transform the text delimited by triple backticks with the following two steps:
+Step 1 - Proofread it without changing its structure
+Step 2 - Change the tone to be formal and friendly
+ ```{text}```"""
+
+### Text Analysis: Examine text to extract info
+## Text Classification: assign categories to text
+# -> specify known categories
+# -> mention output requirements
+# -> if no known labels, model uses its own understanding
+
+# Craft a prompt to classify the ticket
+prompt = f"""Classify the {ticket} as technical issue, billing inquiry, or product feedback, without providing anything else in the response."""
+
+## Entity Extraction: e.g names, places etc
+# specify entitities to extract
+# specify output requirements
+
+# Craft a few-shot prompt to get the ticket's entities
+prompt = f"""Ticket: {ticket_1} -> Entities: {entities_1}
+            Ticket: {ticket_2} -> Entities: {entities_2}
+            Ticket: {ticket_3} -> Entities: {entities_3}
+            Ticket: {ticket_4} -> Entities: """
+
+### Code Generation and Explanation
+## For Generation prompts can specify:
+# -> problem description
+# -> programming language
+# -> format e.g script, function
+
+# Craft a prompt that asks the model for the function
+prompt = """write a Python function that receives a list of 12 floats representing monthly sales data as input and, returns the month with the highest sales value as output."""
+
+# can give the model input-output examples to generate a program that maps a function
+examples="""input = [10, 5, 8] -> output = 23
+input = [5, 2, 4] -> output = 11
+input = [2, 1, 3] -> output = 6
+input = [8, 4, 6] -> output = 18
+"""
+# Craft a prompt that asks the model for the function
+prompt = f"""infer the Python function that maps the inputs to the outputs in the provided {examples}"""
+
+## For Explanations
+function = """def calculate_area_rectangular_floor(width, length):
+					return width*length"""
+# Craft a multi-step prompt that asks the model to adjust the function
+prompt = """test if the inputs to the functions {function} are positive, and if not, display appropriate error messages, otherwise return the area and perimeter of the rectangle."""
+
+# Craft a chain-of-thought prompt that asks the model to explain what the function does
+prompt = f"""explain the given function {function} step by step"""
