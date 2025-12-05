@@ -239,3 +239,89 @@ prompt = """test if the inputs to the functions {function} are positive, and if 
 
 # Craft a chain-of-thought prompt that asks the model to explain what the function does
 prompt = f"""explain the given function {function} step by step"""
+
+#############################################################################################################
+### PE for Chatbot Development
+# use system messages to build chatbots because these guide model behaviour when answering users
+# update the get_response() function to get system_prompts as well
+def get_response(system_prompt, user_prompt):
+  # Assign the role and content for each message
+  messages = [{"role": "system", "content": system_prompt},
+      		  {"role": "user", "content": user_prompt}]  
+  response = client.chat.completions.create(
+      model="gpt-4o-mini", messages= messages, temperature=0)
+  return response.choices[0].message.content
+
+# Try the function with a system and user prompts of your choice 
+response = get_response("You are a finance expert", "What is money transfer?")
+print(response)
+
+## System Prompt
+# define the purpose of the chatbot
+# define response guidlines like audience, tone, length, structure
+# define behavior guidelines like asking for missing info, providing context, etc
+
+# Define the purpose of the chatbot
+chatbot_purpose = "You are a customer support chatbot for an e-commerce company specializing in electronics. You will assist users with inquiries, order tracking, and troubleshooting common issues."
+# Define audience guidelines
+audience_guidelines = "The target audience is tech-savvy individuals interested in purchasing electronic gadgets"
+# Define tone guidelines
+tone_guidelines = "use a professional and user-friendly tone while interacting with customers.
+system_prompt = chatbot_purpose + audience_guidelines + tone_guidelines
+response = get_response(system_prompt, "My new headphones aren't connecting to my device")
+
+# Define the order number condition
+order_number_condition = "Please ask for the order number if they submitted a query about an order without specifying an order number"
+# Define the technical issue condition
+technical_issue_condition = "if the user is reporting a technical issue, start the response with 'I'm sorry to hear about your issue with ...."
+# Create the refined system prompt
+refined_system_prompt = base_system_prompt + order_number_condition + technical_issue_condition
+response_1 = get_response(refined_system_prompt, "My laptop screen is flickering. What should I do?")
+response_2 = get_response(refined_system_prompt, "Can you help me track my recent order?")
+
+## Role-Playing Prompt
+# tell the chatbot to adopt a specific role
+# tailored language and content to fit the persona
+# learns role from training data
+# tell the model to act as a specific role
+
+# Craft the system_prompt using the role-playing approach
+system_prompt = "You are a personalized learning advisor chatbot that recommends textbooks for users. Your role is to receive queries from learners about their background, experience, and goals, and accordingly, recommend a learning path of textbooks, including both beginner-level and more advanced options."
+user_prompt = "Hello there! I'm a beginner with a marketing background, and I'm really interested in learning about Python, data analytics, and machine learning. Can you recommend some books?"
+response = get_response(system_prompt, user_prompt)
+print(response)
+
+base_system_prompt = "Act as a learning advisor who receives queries from users mentioning their background, experience, and goals, and accordingly provides a response that recommends a tailored learning path of textbooks, including both beginner-level and more advanced options."
+# Define behavior guidelines
+behavior_guidelines = "ask the user about their background, experience, and goals, whenever any of these is not provided in the prompt."
+# Define response guidelines
+response_guidelines = "recommend no more than three textbooks."
+system_prompt = base_system_prompt + behavior_guidelines + response_guidelines
+user_prompt = "Hey, I'm looking for courses on Python and data visualization. What do you recommend?"
+response = get_response(system_prompt, user_prompt)
+
+## External Context 
+# need to provide the chatbot context of what we are building it for because most are trained on generic data
+# give context as examples or in system prompt using triple backticks
+# Define the system prompt
+system_prompt = "You are a customer service chatbot delivery service that responds in a gentle way."
+context_question = "What types of items can be delivered using MyPersonalDelivery?"
+context_answer = "We deliver everything from everyday essentials such as groceries, medications, and documents to larger items like electronics, clothing, and furniture. However, please note that we currently do not offer delivery for hazardous materials or extremely fragile items requiring special handling."
+# Add the context to the model
+response = client.chat.completions.create(
+  model="gpt-4o-mini",
+  messages=[{"role": "system", "content": system_prompt},
+            {"role": "user", "content": context_question},
+            {"role": "assistant", "content": context_answer },
+            {"role": "user", "content": "Do you deliver furniture?"}])
+response = response.choices[0].message.content
+print(response)
+
+# Define the system prompt
+system_prompt = f"""You are a customer service chatbot for MyPersonalDelivery whose service description is delimited by triple backticks. You should respond to user queries in a gentle way.
+ ```{service_description}```
+"""
+user_prompt = "What benefits does MyPersonalDelivery offer?"
+# Get the response to the user prompt
+response = get_response(system_prompt, user_prompt)
+
