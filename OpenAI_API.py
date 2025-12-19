@@ -141,21 +141,63 @@ else:
     print("Message exceeds token limit")
 
 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
+### Function Calling
+# OpenAI has tools that can be used to get better, more specific responses
+# up till now we were using JSON structure for outputs
+# however, this is purely based on the model's interpretation, which can be inconsistent sometimes
+# Function calling addresses this issue
+# -> enables OpenAI models to take user-defined functions as input
+# -> this results in consistent responses without the need for complex text processing techniques
+# Advantages:
+# 1. go from unstructured to consistent structured output
+# 2. call multiple functions to provide complex responses
+# 3. define functions that enhance responses by calling external APIs
+
+### Extracting Structured Data From Text
+## 1. Set up function calling
+# the format of the function is a list of dictionaries
+# -> in the parameters, each key is the key that will be included in the resulting JSON schema
+# -> each value is a dictionary containing the type of data it will hold + a description to help the model extract it
+
+function_definition = [{
+    'type':'function',           # specify type of tool; function type is used when we want to call our own user-defined func
+    'function':{
+        'name':'extract_job_info',
+        'description':'Get the job information from the body of the input text',
+        'parameters':{
+            'type':'object',
+            'properties':
+                'job':{'type':'string',
+                    'description':'Job title'},
+                'location':{'type':'string',
+                    'description':'Office location'}
+        }
+    }
+}]
+
+response=client.chat.completions.create(
+    model = model,
+    messages = messages,
+    tools = function_definition
+)
+
+print(response.choices[0].message.tool_calls[0].function.arguments) # toole_calls is a list as there is an option to call multiple funcs
+####################################################################################################################################
+
+client = OpenAI(api_key="<OPENAI_API_TOKEN>")
+
+response = get_response(messages, function_definition)
+
+# Define the function to extract the data dictionary
+def extract_dictionary(response):
+  return response.choices[0].message.tool_calls[0].function.arguments
+
+# Print the data dictionary
+print(extract_dictionary(response))
+##############################################################################################################
+
+### Working with Multiple Functions
+#
 # 
 # 
 # 
