@@ -186,6 +186,17 @@ print(response.choices[0].message.tool_calls[0].function.arguments) # toole_call
 
 client = OpenAI(api_key="<OPENAI_API_TOKEN>")
 
+# Append the second function
+function_definition.append({'type': 'function', 'function':{'name': 'reply_to_review', 'description': 'Reply politely to the customer who wrote the review', 'parameters': {'type': 'object', 'properties': {'reply': {'type': 'string','description': 'Reply to post in response to the review'}}}}})
+
+response = get_response(messages, function_definition)
+
+# Print the response
+print(response)
+#####################################################################################################
+
+client = OpenAI(api_key="<OPENAI_API_TOKEN>")
+
 response = get_response(messages, function_definition)
 
 # Define the function to extract the data dictionary
@@ -197,8 +208,128 @@ print(extract_dictionary(response))
 ##############################################################################################################
 
 ### Working with Multiple Functions
-#
-# 
-# 
-# 
-# 
+## Parallel Function Calling
+# -> ability to call multiple functions
+# -> improves communication with the model
+# -> use indexing to select the different responses from the tool_calls list
+
+print(response.choices[0].message.tool_call[1].function.arguments)
+
+# we may end up having a lot of function in the tools
+# default behavior of the model is to choose which one to use based on the message and the function definitions
+# equivalent to setting tool_choice to auto
+
+tool_choice='auto'
+
+# if we want the model to pick a specific function from the list
+# change from 'auto' to a dictionary containing the name of the function we'd like the model to use
+
+tool_choice = {'type':'function',
+                'function':{'name':'extract_job_info'}
+            }
+
+### Doble-checking the Response
+# specify the model to not make any assumptions
+# do this in the system message
+
+messages=[]
+messages.append({"role":"system", "content":"Don't make assumptions about what values to plug into functions."})
+messages.append({"role":"system", "content":"Ask for clarifiication if needed"})
+
+# it may return an empty dictionary if it cannot find anything suitable to respond to the prompt
+
+### Calling External APIs
+# use requests library to call API by providing its URL and query parameters
+# then specify the type of request and pass the URL and parameters to the request() function to get the reponse
+
+import requests
+
+url = "https://api.artic.edu/api/v1/artworks/search"
+querystring={"q", keyword}      # parameters required as input to the API call for the external API
+response = requests.request("GET", url, params=querystring)
+######################################################################################################
+
+# package the API call as a function
+# returns the recommended artwork based on an input keyword
+
+import requests
+
+def get_artwork(keyword):
+    url = "https://api.artic.edu/api/v1/artworks/search"
+    querystring={"q", keyword}      # parameters required as input to the API call for the external API
+    response = requests.request("GET", url, params=querystring)
+
+    return response.text
+
+# set up a Chat Completions request
+# make sure it uses the user message to generate one keyword that will then be used as input for calling the external API
+# so we provide a specific system message asking to interpret the prompt
+# based on it extract one keyword for recommending artwork related to their preference
+# also provide a user message as an example
+
+import json         # to convert the response to a dictionary
+
+function_definition=[{
+    "type":"function",
+    "function":{
+        "name":"get_artwork",
+        "description":"This function calls the Art Institute of Chicago API to find artwork that matches the keyword",
+        "parameters":{
+            "type":"object",
+            "properties":{
+                "artwork_keyword":{
+                    "type":"string",
+                    "description":"The keyword to be passed to the get_artwork function"
+                }
+            }
+        },
+    "result":{"type":"string"}
+    }
+}]
+
+response=client.chat.completions.create(
+    model=model,
+    messages=[
+        {
+            "role":"system",
+            "content":"You are an AI assistant, a specialist in history of art. You should interpret the user prompt, and based on it extract one keyword for recommending artwork to their preference."
+        },
+        {
+            "role":"user",
+            "content":"I don't have much time to visit the museum and would like some nice recommendations. I like the seaside and quiet places."
+        }     
+    ],
+    tools=function_definition
+)
+
+# 1. check if there was a call to the API in tools
+# -> check the finish_reason in rsponse.choices = tool_calls
+# -> if yes, we extract the function that was called using function in message.tool_calls
+# -> if no, print a message to the user stating that the request could not be understood
+
+# 2. next step is to extract which function was called
+# -> use the name from function_call
+# --> if the function called is 'get_artwork
+# -> we extract the keyword from the function call arguments
+# -> once keyword is extracted we can proceed to call the external API using the 'get_artwork' function
+
+# 3. if external API returns a response 
+# -> we extract our recommendations
+# -> we use a dictionary comprehension to extract the response due to the format of the output in the external API
+
+if response.choices[0].finish_reason == 'tools_calls':
+    function_call = response.choices[0].message.tool_calls[0].function
+    if function_call.name == "get_artwork":
+        artwork_keyword = json.loads(function_call.arguments)["artwork keyword"]
+        artwork = get_artwork(artwork_keyword)
+        if artwork:
+            print(f"Here are some recommendations:{[
+                i['title'] for i in json.loads(artwork)['data']
+            ]}")
+        else:
+            print("Apologies, I couldn't make any recommendations based on the request")
+    else:
+        print("I couldn't find any artwork")
+else:
+    print("I am sorry, but I could not understand your request.")
+
