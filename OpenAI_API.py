@@ -21,6 +21,7 @@
 # -> then ressponse_format = {"type":"json_object"}
 # -> this allows us to extract relevant data when communicating with external applications
 
+from pyexpat import model
 from openai import OpenAI
 
 client = OpenAI(api_key="YOUR_API_KEY")
@@ -333,3 +334,82 @@ if response.choices[0].finish_reason == 'tools_calls':
 else:
     print("I am sorry, but I could not understand your request.")
 
+#############################################################################################################
+
+### Moderation in OpenAI API
+## Moderation: process of analyzing input to determine if it contains any content that violates predefined policies or guidelines
+# -> critical aspect of managing user-generated content
+# -> OpenAI provides a moderations endpoint as a part of its API o help developers flag and filter out such content
+# -> uses the model to asssess the content and assign a probability for each category of content violation
+# -> categories include hate, harassment, self-harm, sexually explicit content, violent content
+
+moderations_response = client.moderations.create(input="""... Exploding kitten... they are now dead....""")
+print(moderations_response.results[0].categories.violence)
+
+# game's instructions has been classified as violent
+# so output to the 'violence' category is 'True'
+# -> however if we give it the entire context and tell it that this is a game, it no longer classifies it as violent
+
+## Prompt Injection Attack
+# when text increases, it becomes harder to classsify the text
+# -> opens it up to prompt injection attack
+# -> malicious actors manipulate AI models to produce undesirable outcomes
+# MITIGATIONS:
+# -> limiting the amount of text in prompts
+# -> Limiting the number of output tokens generated
+# -> Using pre-selected content as validated input and output
+
+## ADDING GUARDRAILS
+# give it a system message to help it avoid going off-topic
+
+client = OpenAI(api_key="<OPENAI_API_TOKEN>")
+
+user_request = "Can you recommend a good restaurant in Berlin?"
+
+# Write the system and user message
+messages = [{"role":"system", "content":"You are a chatbot that provides advice for tourists visiting Rome. Keep the topics limited to only covering questions about food and drink, attractions, history and things to do around the city. For any other topic, apologize and say 'Apologies, but I am not allowed to discuss this topic.'."},
+{"role":"user", "content":user_request}]
+
+response = client.chat.completions.create(
+    model="gpt-4o-mini", messages=messages
+)
+
+# Print the response
+print(response.choices[0].message.content)
+
+### Validation
+# -> test model performance to uncover areas where the model might be prone to making mistakes
+## Potential Errors
+# 1. Misinterpreting context
+# 2. Amplifying biases in its outputs if the training data is biased
+# 3. Output outdated information
+# 4. Being manipulated to generate harmful or unethical content
+# 5. Inadvertently revealing sensitive information
+
+## Testing Methods
+# 1. Adversarial Testing
+# -> provide model with prompts that are specifically designed to identify its areas of weakness so that they can be addressed before release
+# -> used with other AI systems where even a small change in input can produce an unwanted or wrong output
+# 2. Use libraries and datasets of standardized use cases that measure the model's performances in a variety of domains
+
+### Safety with the OpenAI API
+# 1. Ethics and fairness
+# 2. Alignment with the scope of the product
+# 3. Privacy of the data
+# 4. Security of system against attacks
+# -> use moderation API
+# -> adversarial testing
+# -> limiting number of output tokens
+# -> human oversight or human-in-th-loop
+# KEEP API KEY safe
+# USE END-USER IDs
+
+import uuid
+uniques_id = str(uuid.uuid4())
+
+response = client.chat.completions.create(
+    model =model,
+    messages=messages,
+    user=uniques_id
+)
+print(uniques_id)
