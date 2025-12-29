@@ -414,3 +414,190 @@ topics = [
 # now only difference here is that we extract the descriptions in a single list using the dexcriptions key and embe key
 class_descriptions = [topic['description' for topic in topics]]
 class_embeddings = create_embeddings(class_descriptions)
+##################################################################################################################################
+##################################################################################################################################
+
+### VECTOR DATABASES
+# -> currently each embedding has 1536 float values
+# impractical to load for millions of embeddings
+# hence we use vector databases
+# -> embedded documents are stored and queried from the vector database
+# -> query is sent from application interface -> embedded -> used to query the embeddings in the database
+# -> results are returned to user through the user interface
+# because, the embedded documents are stored in the vector database, they don't have to be created with each query or stored in memory
+# also, due to the architecture of the database, the similarity calculation is computed more efficiently
+# majority of databases are called NoSQL 
+# SQL databases store data in structured formats like tables, rows and columns
+# NoSQL allows more flexible structure that allows for faster querying
+# -> examples of NoSQL: 1. key-value, 2. document, 3. graph databases
+
+# Vector databases store:
+# 1. embeddings
+# 2. source texts
+# -> if a vector database does not support this, the source texts need to be stored in a separate database and referenced with an ID
+# 3. metadata
+# -> ids and references, additional data usefful for filtering results
+# -> must be small to be practically useful
+#############################################################################################################################
+
+### CREATING VECTOR DB WITH ChromaDB
+# local mode                                                client-server mode
+# -> everything happens inside python               -> ChromaDB server is running in a separate process
+# -> for development and prototyping                -> made for production
+
+## Creating a Collection
+# a default embedding function is used automatically if one isn't specified
+
+from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
+
+# Create a persistant client
+client = chromadb.PersistentClient()
+
+collection = client.create_collection(
+    name = "my_collection",
+    embedding_function = OpenAIEmbeddingFunction(
+        model_name = "text-embedding-small",
+        api_key='...'
+    )
+)
+
+## Inspecting Collections
+# .list_collections() method lists all of the collections in the database so we can verify that our collection was created sucessfully
+
+client.list_collections()
+
+## -> Inserting Embeddings
+# -> Single Document
+# collection.add() method
+# chroma does NOT automatically generate IDs for this document, so they must be specified
+# collection is already aware of the embedding function, it will embed the source texts automatically usinng the function specified
+
+collection.add(ids=["my_doc"], documents=["This is the source text"])
+
+# -> Multiple Documents
+collection.add(
+    ids = ["my-doc-1", "my-doc-2"],
+    documents = ["this is doc 1", "thi si doc 2"]
+)
+
+## -> Inspecting Collection
+# METHOD 1: Counting documents in a collection
+# use collection.count()
+collection.count()
+
+# METHOD 2: Take a look at the first few documents
+# use collection.peek()
+# returns the first 10 items in the collection
+collection.peek()
+
+## Retrieving Items
+# -> we can retrieve items using their ID and the .get() method
+collection.get(ids=["s59"])
+
+## Estimating embedding cost
+# cost = rate of tokens * len(tokens)/no. of tokens the rate is for
+
+import tiktoken
+
+enc = tiktoken.encoding_for_model("text-embedding-3-small")
+total_tokens = sum(len(enc.encode(text)) for text in documents)
+
+cost_per_1k_tokens = 0.00002
+
+print('Total tokens:', total_tokens)
+print('Cost', cost_per_1k_tokens * total_tokens/1000)
+######################################################################################################################
+
+### QUERYING AND UPDATING THE DATABASE
+# we have a query string and we want to find similar titles in our collection
+# now with Chroma, we let the collection do the embedding
+
+# 1. Retrieve the collection
+# -> use .get_collection(name_of_collection)
+# -> use the same function to retrieve the collection that was used to create the collection
+# -> this way chroma will use the same embedding function to create the query vector
+
+from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
+
+collection = client.get_collection(
+    name = "netflix_titles",
+    embedding_function=OpenAIEmbeddingFunction(api_key="...")
+)
+
+# 2. Querying the Collection
+# -> call collection.query()
+# -> pass query string to query_texts
+# -> specify n_results parameter to tell how many results to retrieve
+
+result = collection.query(
+    query_texts=["movies where people sing a lot"],
+    n_results = 3
+)
+print(result)
+
+# result shows the following: query() returns a dictionary with multiple keys
+# -> ids = the ids of the returned items; is a list of lists e.g [['s444', 'k897']], first list is the result of the first query, second is result of second and so on if multiple querys are added to the query_texts
+# -> embeddings = the embeddings of the returned items
+# -> documents = the surce texts of the returned items
+# -> metadatas = the metadats of the retuened items
+# -> distances = the distances of the returned items from the query text
+
+## Updating the Collection
+# use .update method
+# -> include only the fields to update
+collection.update(
+    ids=["id-1", "id-2"],
+    documents=["new doc 1", "new doc 2"]
+)
+
+# use upset() method if you dont know th ids
+# chroma will add the ids if they are missing and update them if they are present
+collection.upsert(
+    ids=["id-1", "id-2"],
+    documents=["new doc 1", "new doc 2"]
+)
+
+# Update or add the new documents
+collection.upsert(
+    ids=[doc['id'] for doc in new_data],
+    documents=[doc['document'] for doc in new_data]
+)
+
+## Deleting
+# -> Delete from a collection
+collection.delete(ids=["id-1","id-2"])
+
+# -> Delete all collections and items
+client.reset()
+#################################################################################################################
+
+### MULTIPLE QUERIES AND FILTERING
+# create a recommender system for movies
+
+# 1. retrieve the reference texts, which is the names of the movies the user has already seen
+reference_ids = ['s875', 's445']
+reference_texts = collection.get(ids=reference_ids)["documents"]
+
+result = collection.query(
+    query_texts=reference_texts,
+    n_results=3
+)
+
+# add metadata for better recommendations
+# Query two results using reference_texts
+result = collection.query(
+  query_texts=reference_texts,
+  n_results=2,
+  # Filter for titles with a G rating released before 2019
+  where={
+    "$and": [
+        {"rating": 
+        	{"$eq": "G"}
+        },
+        {"release_year": 
+         	{"$lt": 2019}
+        }
+    ]
+  }
+)
+print(result['documents'])
