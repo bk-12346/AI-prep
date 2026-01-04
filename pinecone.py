@@ -109,3 +109,112 @@ index.describe_index_stats()
 # useful because then we can just filter by metadata to only search over the most relevant records
 # same syntax
 index.upsert(vectors = vectors)
+##################################################################################################################
+##################################################################################################################
+
+### RETRIEVING VECTORS ###
+## ACCESSING VECTORS
+# two methods: 1. Fetching 2. Querying
+# 1. Fetching
+# ->> retrieve vectors based on their IDs
+# ->> normally done to explore and verify particular records from the index
+# ->> like searching for vectors based on their IDs
+# ->> call the fetch method by passing a list of record ids to return
+
+index.fetch(
+    ids=["0", '1'],
+    namespace='namespace1'
+)
+# results show the vectors listed under vectors + read_units under usage
+# -> READ_UNITS: measure of resources consumed during read operations like fetching, querying and listing
+
+# Initialize the Pinecone client with your API key
+pc = Pinecone(api_key="<PINECONE_TOKEN>")
+
+index = pc.Index('datacamp-index')
+ids = ['2', '5', '8']
+
+# Fetch vectors from the connected Pinecone index
+fetched_vectors = index.fetch(ids=ids)
+
+# Extract the metadata from each result in fetched_vectors
+metadatas = [fetched_vectors['vectors'][id]['metadata'] for id in ids]
+print(metadatas)
+
+# 2. Querying
+# ->> retrieve similar vectors to an input vector
+# ->> like searching for vectors similar to the ones we have
+# use .query() method, pass it a vector to query with + top_k argument
+
+index.query(
+    vector=[-0.236987411, ...],
+    top_k=3,
+    include_values=True         # to see the vector values in the output
+)
+
+# results in the top_k matches + a score for every id which is the measure of similarity
+# -> READ_UNITS - dependent on 1. no. of records, 2. size of records which is the vector dimensionality + amount of metadata
+
+## DISTANCE METRICS
+# Cosine, Euclidean, Dot
+# can require a bit of experimentation
+
+pc.create_index(
+    name="datacamp-index",
+    dimension=1536,
+    metric='dotproduct',
+    specs=ServerlessSpec(
+        cloud='aws',
+        region='us-east-1'
+    )
+)
+##################################################################################
+
+### METADATA FILTERING ###
+# use filter method in query
+# takes a dictionary where each key is the metadata to filter and their values specify how to filter them
+
+index.query(
+    vector=[-0.025697, ...],
+    filter={
+        "genre":{"$eq":"documentary"},      # $eq is the equality operator
+        "year":2019
+    },
+    top_k=1,
+    include_metadatas=True      # to include the metadat in the result
+)
+
+index = pc.Index('datacamp-index')
+
+# Retrieve the MOST similar vector with genre and year filters
+query_result = index.query(
+    vector=vector,
+    top_k=1,
+    filter={
+        "genre":{"$eq":"thriller"},
+        "year":{"$lt":2018}
+    }
+)
+print(query_result)
+######################################################################################
+
+### UPDATING AND DELETING VECTORS
+## UPDATE
+
+index.update(
+    id="1",     # the ID of the vector we want to update
+    values=[0.3644646, ...],    # new values we want to update 
+    set_metadata={"genre":"comedy", "rating": 5}    # update the metadata
+)
+
+## DELETE
+
+index.delete(
+    id=ids,
+    filter={
+        "genre":{"$eq":"action"}
+    }
+)
+
+# to delete all records from a namespace
+index.delete(delete_all=True, namespace='namespace1')
