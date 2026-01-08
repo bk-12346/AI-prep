@@ -211,6 +211,121 @@ class Document:
     def _tokenize(self):    # only pass one parameter to the function, the prescribed self convention r=that will represent an instance of the Documnet object
         return tokenize(self.text)  # just call it oon the text attribute
     
- 
+### DRY PRINCIPLE ###
+# Dont Repeat Yourself
+# if we want a child class from a parent class, basically extending one class into another with all the functionality of the original class intact
+# use INHERITANCE
+from .parent_class import ParentClass
 
+# Create a child class with inheritance
+class ChildClass(ParentClass):
+    def __init__(self):
+        # call the parent's __init__ method
+        ParentClass.__init__(self)  # init builds an instance of a class and it also accepts self as its first argument
+        # we make an instance of the Parent Class and store it right back in itself
+        # this means that  the self now has all the methods and attributes that an instance of ParentClass would
+        # we can now use self as normal to build in additional functionality unique to ChildClass
+        self.child_attribute = "I'm the child class attribute"
+
+# Create a ChildClass instance
+child_class = ChildClass()
+print(child_class.child_attribute)
+print(child_class.parent_attribute)
+
+## EXAMPLE ##
+
+class Document:
+    # Initialize a new Document instance
+    def __init__(self, text):
+        self.text = text
+        # Pre tokenize the document with non-public tokenize method
+        self.tokens = self._tokenize()
+        # Pre tokenize the document with non-public count_words
+        self.word_counts = self._count_words()
+
+    def _tokenize(self):
+        return tokenize(self.text)
+
+    # Non-public method to tally document's word counts
+    def _count_words(self):
+        # Use collections.Counter to count the document's tokens
+        return Counter(self.tokens)
+
+# Define a SocialMedia class that is a child of the `Document class`
+class SocialMedia(Document):
+    def __init__(self, text):
+        Document.__init__(self, text)
+        self.hashtag_counts = self._count_hashtags()
+        self.mention_counts = self._count_mentions()
+        
+    def _count_hashtags(self):
+        # Filter attribute so only words starting with '#' remain
+        return filter_word_counts(self.word_counts, first_char='#')      
+    
+    def _count_mentions(self):
+        # Filter attribute so only words starting with '@' remain
+        return filter_word_counts(self.word_counts, first_char='@')
+
+# Import custom text_analyzer package
+import text_analyzer
+
+# Create a SocialMedia instance with datacamp_tweets
+dc_tweets = text_analyzer.SocialMedia(text=datacamp_tweets)
+
+# Print the top five most mentioned users
+print(dc_tweets.mention_counts.most_common(5))
+
+# Plot the most used hashtags
+text_analyzer.plot_counter(dc_tweets.hashtag_counts)
+
+### MULTILEVEL INHERITANCE ###
+# can create a grandchild class
+# one child class can inherit  from multiple parents
+
+class Parent:
+    def __init__(self):
+        print("I'm a parent!")
+
+class Child(Parent):
+    def __init__(self):
+        Parent.__init__()
+        print("I'm a child")
+
+class SuperChild(Child):
+    def __init__(self):
+        super().__init__()
+        print("I'm a super child")
+
+## EXAMPLE ##
+# Import needed package
+import text_analyzer
+
+# Create instance of document
+my_doc = text_analyzer.Document(datacamp_tweets) 
+
+# Import needed package
+import text_analyzer
+
+# Create instance of document
+my_doc = text_analyzer.Document(datacamp_tweets)
+
+# Run help on my_doc's plot method
+help(my_doc.plot_counts)
+
+# Plot the word_counts of my_doc
+my_doc.plot_counts()
+
+# Define a Tweet class that inherits from SocialMedia
+class Tweets(SocialMedia):
+    def __init__(self, text):
+        # Call parent's __init__ with super()
+        super().__init__(text)
+        # Define retweets attribute with non-public method
+        self.retweets = self._process_retweets()
+
+    def _process_retweets(self):
+        # Filter tweet text to only include retweets
+        retweet_text = filter_lines(self.text, first_chars='RT')
+        # Return retweet_text as a SocialMedia object
+        return SocialMedia(retweet_text)
 
