@@ -170,3 +170,134 @@ llm = ChatOpenAI(model="gpt-4o-mini", api_key='<OPENAI_API_TOKEN>')
 # 5. Create and invoke the chain
 llm_chain = prompt_template | llm
 print(llm_chain.invoke({"input": "What is Jack's favorite technology?"}))
+
+### SEQUENTIAL CHAINS ###
+# some problems can only be solved sequentially
+# e.g. a chatbot that takes plans your travel intinarary 
+# output from one chain becomes the input to the next chain
+
+# -> create 2 prompt templates
+# ->> 1 to generate suggestions for activities from inputs destination
+# ->> another to create an itinerary for one day of activities from the model's top 3 suggestions
+
+destination_prompt = PromptTemplate(
+    input_variables=["destination"],
+    template=f"I am planning a trip to {destination}. Can you suggest some activities to do there?"
+)
+
+activities_prompt = PromptTemplate(
+    input_variables=["activities"],
+    template = f"I only have one day, so can you create an itinerary from your top three activities: {activities}"
+)
+
+llm = ChatOpenAI(model="gpt-4o-mini", api_key="key")
+
+# start by defining a dictionary that passes the destination promt template to the llm and parses the output to a string
+# assigned to the activities key
+# -> important because this is the input variable to the second prompt template
+# we then pipe the first chain into the second prompt template
+# then into the llm
+# then parse again
+seq_chain = ({"activities": destination_prompt | llm | StrOutputParser()}
+    | activities_prompt
+    | llm
+    | StrOutputParser()) 
+
+print(seq_chain.invoke({"destination":"Rome"}))
+
+## Example ##
+# Create a prompt template that takes an input activity
+learning_prompt = PromptTemplate(
+    input_variables=["activity"],
+    template="I want to learn how to {activity}. Can you suggest how I can learn this step-by-step?"
+)
+
+# Create a prompt template that places a time constraint on the output
+time_prompt = PromptTemplate(
+    input_variables=["learning_plan"],
+    template="I only have one week. Can you create a plan to help me hit this goal: {learning_plan}."
+)
+
+# Invoke the learning_prompt with an activity
+print(learning_prompt.invoke({"activity": "biking"}))
+
+# Complete the sequential chain with LCEL
+seq_chain = ({"learning_plan": learning_prompt | llm | StrOutputParser()}
+    | time_prompt
+    | llm
+    | StrOutputParser())
+
+# Call the chain
+print(seq_chain.invoke({"activity": "biking"}))
+
+### LANGCHAIN AGENTS ###
+# Agents: use LLMs to take actions
+# Tools: functions called by agents
+# -> can be high-level utilities to transform inputs or can be task-specific
+
+## ReAct AGENT ##
+# Reasoning + Acting
+# prompts model using a repeated loop of thinking, acting and observing
+# use LangGraph for agentic systems
+# example is creating a ReAct Agent that solves math problems
+
+from langgraph.prebuilt import create_react_agent
+from langchain_community.agent_toolkits.load_tools import load_tools
+
+# initialize the llm 
+# load the llm-math tool using load_tools() function
+llm = ChatOpenAI(model="gpt-4o-mini", api_key="key")
+tools = load_tools(["llm-math"], llm=llm)
+
+# create agent using creat_react_agent
+agent = create_react_agent(llm, tools)
+
+messages = agent.invoke({"messages": [("human", "What is the square root of 101?")]})
+print(messages)
+
+# if we just want final response without metadata
+print(messages['messages'][-1].content)
+
+### TOOLS ###
+# we can design our own
+# must follow a format, name, description as llm uses this to know when to call the tool
+
+from langchain_community.agent_toolkits.oad_tools import load_tools
+
+tools = load_tools(["llm-math"], llm=llm)
+print(tools[0].name)
+print(tools[0].description)
+# .return_direct() used to determine if the agent should stop invoking this tool if True
+print(tools[0].return_direct)
+
+## Custom python function to generate a financial report for a company
+# use the @tool decorator
+# -> modifies the function so that it is in the correct format used by the tool
+from langchain_core.tools import tool
+
+@tool
+def financial_report(company_name: str, revenue: int, expenses: int) -> str:
+    """Generate a financial report for a company that calculates net income."""
+    net_income = revenue - expenses
+
+    report = f"Financial Report for {company_name}:\n"
+    report += f"Revenue: ${revenue}\n"
+    report += f"Expenses: ${expenses}\n"
+    report += f"Net Income: ${net_income}\n"
+    return report
+
+# examine the tool
+print(financial_report.name)
+print(financial_report.description)
+print(financial_report.return_direct)
+print(financial_report.args)
+
+# integrating the tool
+from langgraph.prebuilt import create_react_agent
+
+llm = ChatOpenAI(model="gpt-4o-mini", api_key="key")
+agent = create_react_agent(llm, [financial_report])
+
+messages = agent.invoke({"messages": [("human", "TechStack generated made $10 million with $8 million of costs. Generate a financial report.")]})
+print(messages)
+
