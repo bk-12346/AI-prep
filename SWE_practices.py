@@ -329,3 +329,38 @@ class Tweets(SocialMedia):
         # Return retweet_text as a SocialMedia object
         return SocialMedia(retweet_text)
 
+### DOCUMENTATION ###
+# comments: used in-line to document what a particular line of code is doing
+# docstrings: used to document functions, classes, scripts
+""" High level description of function
+
+Additional details on function
+
+:param x: description of parameter x
+:return: description of return value
+
+>>> # Example function usage
+Expected output of example function usage
+"""
+
+### READABILITY ###
+# -> decriptive meaning
+# -> back processes out into their own high-level functions
+# -> one function should mostly do one thing
+
+### UNIT TESTING ###
+# -> can use doctest or pytest
+
+## Doctest
+# great for smaller examples
+# can't test every case in docstring
+import doctest
+doctest.testmod()
+
+## Pytest
+# -> have a tests directory at the same level as the package directory
+# -> starts by searching for files that start or end with test
+# -> run the test with the assert keyword
+# ->>> assertion is TRUE, test passes
+
+# -> instead of using == to compare if 2 objects are same, check if there are attributes are the same
