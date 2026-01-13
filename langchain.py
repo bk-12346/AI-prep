@@ -11,6 +11,7 @@
 
 ## PROMPTING OPENAI MODELS ##
 from ast import Or
+from SWE_practices import Document
 from langchain_openai import ChatOpenAI
 
 # define a model to use the langchain app
@@ -301,3 +302,175 @@ agent = create_react_agent(llm, [financial_report])
 messages = agent.invoke({"messages": [("human", "TechStack generated made $10 million with $8 million of costs. Generate a financial report.")]})
 print(messages)
 
+### RAG ###
+# user query is embedded and used to retrieve the most relevant docs from the database
+# these docs are added to the model's prompts so that the model has extra context to inform its response
+# 3 steps:
+# -> 1. Document Loader -> load the documents into LangChain with document loaders
+# ->>> classes designed to load and configure docs for integration with AI systems
+# ->>> document loaders for common class types: .pdf, .csv
+# ->>> PDF Document Loader
+# ->>>> instantiate the PyPDFLoader class, passing in the path to the PDF file we are loading
+
+from langchain_community.document_loaders import PyPDFLoader, CSVLoader, UnstructuredHTMLLoader
+
+loader1 = PyPDFLoader("path/to/file/file.pdf")
+loader2 = CSVLoader('file.csv')
+
+data = loader1.load()
+print(data[0])
+
+# -> 2. Splitting -> split the documents into chunks 
+# ->>> chunks are units of information that we can index and process individually
+# ->>> done to fit doc into the LLM context window
+
+## CHUNK OVERLAP
+# ->> implemented to counteract lost context during chunk splitting
+# ->>  the overlap helps retain context
+# ->> can be increased of the model show signs of losing context
+ 
+# STRATEGIES FOR CHUNK SPLITTING
+# 1. CharacterTextSplitter
+# -> based on separator first then evaluates chunk_size and chunk_overlap to check 
+
+from langchain_text_splitters import CharacterTextSplitter
+
+quote = '''Hello. this is me.\n thankyou'''
+chunk_size=24
+chunk_overlap=3
+
+ct_splitter = CharacterTextSplitter(
+    separator = '.',
+    chunk_size=chunk_size,
+    chunk_overlap=chunk_overlap
+)
+
+# apply the splitter to the quote using the .split_text() method
+docs = ct_splitter.split_text(quote)
+print(docs)
+print([len(doc) for doc in docs])
+
+# 2. RecursiveCharacterTextSplitter
+# -> takes a list of separators to split on and works through the list from left to right, splitting the document using each separator
+
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+rc_splitter = RecursiveCharacterTextSplitter(
+    separators=["\n\n", "\n", " ", ""],
+    chunk_size = chunk_size,
+    chunk_overlap = chunk_overlap
+)
+
+docs = rc_splitter.split_text(quote)
+print(docs)
+
+# 3. Storage + Retrieval -> encoding and storing the chunks for retrieval, which can utilize a vector database if necessary
+# -> use a vector database to store the documents and make them available for retrieval
+# -> a user query can be embedded to retrieve the most similar docs from the database and insert them into the model prompt
+
+docs = [
+    Document(
+        page_content = "In all marketing copy, TechStack should always be written with the T and S capitalized. Incorrect: techstack, Techstack, etc.",
+        metadata={"guideline": "brand-capitalization"}
+    ),
+    Document(
+        page_content = "Our users should be referred to as techies in both internal and external communications.",
+        metadata={"guideline": "referring-to-users"}
+    )
+]
+
+# embed the doc using an embedding model 
+from langchain_openai import OpenAIEmbeddings
+from langchain_chroma import Chroma
+
+embedding_function = OpenAIEmbeddings(api_key='key', model='text-embedding-3-small')
+
+# create a chroma db from a set of documents by calling .from_documents
+vectorstore = Chroma.from_documents(
+    docs,
+    emnedding=embedding_function,
+    persist_directory = "path/to/directory"
+)
+
+# to integrate the database with other LangChain components, we convert it into a retriever with the .as_retriever() method
+retriever = vectorstore.as_retriever(
+    search_type = "similarity",     # specifying that we want to do a similarity 
+    search_kwargs = {"k":2}         # return the top 2 most similar docs for each user query
+)
+
+# now the model knows what to do so we construct a prompt template
+# this one starts with the instruction to review and fix the copy provided
+# insert the retrieved guidelines and copy to review
+
+from langchain_core.prompts import ChatPromptTemplate
+
+message = f"""
+Review and fix the following TechStack marketing copy with the following guidelines in consideration:
+
+Guidelines: {guidelines}
+
+Copy: {copy}
+
+Fixed Copy:
+"""
+
+prompt_template=ChatPromptTemplate.from_messages([("human", message)])
+
+# chain it all together
+from langchain_core.runnables import RunnablePassthrough
+
+rag_chain = ({"guidelines":retriever, "copy": RunnablePassthrough()}
+    | prompt_template
+    | llm)
+
+response = rag_chain.invoke("Here at teckstack, our users are the best in the world!")
+print(response.content)
+
+## EXAMPLE ##
+loader = PyPDFLoader('rag_vs_fine_tuning.pdf')
+data = loader.load()
+
+# Split the document using RecursiveCharacterTextSplitter
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=300,
+    chunk_overlap=50)
+docs = splitter.split_documents(data) 
+
+# Embed the documents in a persistent Chroma vector database
+embedding_function = OpenAIEmbeddings(api_key='<OPENAI_API_TOKEN>', model='text-embedding-3-small')
+vectorstore = Chroma.from_documents(
+    docs,
+    embedding=embedding_function,
+    persist_directory=os.getcwd()
+)
+
+# Configure the vector store as a retriever
+retriever = vectorstore.as_retriever(
+    search_type="similarity",
+    search_kwargs={"k": 3}
+)
+
+# Add placeholders to the message string
+message = """
+Answer the following question using the context provided:
+
+Context:
+{context}
+
+Question:
+{question}
+
+Answer:
+"""
+
+# Create a chat prompt template from the message string
+prompt_template = ChatPromptTemplate.from_messages([("human", message)])
+
+# Create a chain to link retriever, prompt_template, and llm
+rag_chain = ({"context": retriever, "question": RunnablePassthrough()}
+            | prompt_template
+            | llm)
+
+# Invoke the chain
+response = rag_chain.invoke("Which popular LLMs were considered in the paper?")
+print(response.content)
