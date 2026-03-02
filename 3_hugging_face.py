@@ -200,7 +200,7 @@ print(tokens)
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
 
 my_model=AutoModelForSequenceClassification.from_pretrained("model_name")
-my_tokenizer = AutoTokenizer.from_pretraines("mosel_name")
+my_tokenizer = AutoTokenizer.from_pretrained("model_name")
 
 my_pipeline = pipeline(
     task="sentiment-analysis",
